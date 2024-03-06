@@ -4,7 +4,8 @@ simple lab management system using python and tkinter
 #Required softwares to run
 1. Visual studio code
 2. Python installed in your system
-3. You might need to install tkinter
+3. You might need to install tkinter using the following command ( pip install tkinter )
+      
 
 #Details
 
