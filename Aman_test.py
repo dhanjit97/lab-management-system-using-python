@@ -1,9 +1,9 @@
-import tkinter as tk
 from tkinter import messagebox
 import threading
 import time
 import csv
 import sqlite3
+import tkinter as tk
 
 class Lab:
     def __init__(self, lab_id, num_computers):
@@ -147,4 +147,16 @@ def create_lab_capacity_entries():
     class_duration_label.grid(row=num_labs + 3, column=0, sticky=tk.W)
     class_duration_entry.grid(row=num_labs + 3, column=1, sticky=tk.W)
 
-    assign_class_button.grid(row=num_labs + 4, column=0
+    assign_class_button.grid(row=num_labs + 4, column=0, sticky=tk.W)
+
+class_name_label = tk.Label(root, text="Enter Class Name:")
+class_name_entry = tk.Entry(root)
+
+num_students_label = tk.Label(root, text="Enter Number of Students:")
+num_students_entry = tk.Entry(root)  
+
+class_duration_label = tk.Label(root, text="Enter Class Duration (hours):")
+class_duration_entry = tk.Entry(root)
+
+assign_class_button = tk.Button(root, text="Assign Class", command=assign_class)
+
