@@ -1,9 +1,9 @@
+import tkinter as tk
 from tkinter import messagebox
 import threading
 import time
 import csv
-import sqlite3
-import tkinter as tk
+import sys
 
 class Lab:
     def __init__(self, lab_id, num_computers):
@@ -16,38 +16,7 @@ class Lab:
         self.assigned_time = None
         self.time_duration = None
         self.total_students = None
-        self.db_connection = sqlite3.connect("lab_database.db")
-        self.create_table()
-
-    def create_table(self):
-        cursor = self.db_connection.cursor()
-        cursor.execute('''CREATE TABLE IF NOT EXISTS pc_logins
-                          (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                          lab_id INTEGER,
-                          pc_id INTEGER,
-                          login_time TEXT,
-                          logout_time TEXT)''')
-        self.db_connection.commit()
-
-    def log_in_pc(self, pc_id):
-        if self.available_computers > 0:
-            cursor = self.db_connection.cursor()
-            current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-            cursor.execute("INSERT INTO pc_logins (lab_id, pc_id, login_time) VALUES (?, ?, ?)",
-                           (self.lab_id, pc_id, current_time))
-            self.db_connection.commit()
-            self.available_computers -= 1
-            return True
-        else:
-            return False
-
-    def log_out_pc(self, pc_id):
-        cursor = self.db_connection.cursor()
-        current_time = time.strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute("UPDATE pc_logins SET logout_time = ? WHERE lab_id = ? AND pc_id = ? AND logout_time IS NULL",
-                       (current_time, self.lab_id, pc_id))
-        self.db_connection.commit()
-        self.available_computers += 1
+        self.attending_students = []
 
     def assign_class(self, class_name, num_students, class_duration_hours):
         class_duration_seconds = class_duration_hours * 3600  # Convert hours to seconds
@@ -76,11 +45,27 @@ class Lab:
         self.available_computers = self.num_computers
         message = f"Class '{class_name}' completed in Lab {self.lab_id}."
         output_text.insert(tk.END, message + "\n")
+        self.attending_students.clear()  # Clear the list of attending students after class
+
+    def cancel_class(self):
+        if self.current_class is not None:
+            self.current_class = None
+            self.available_computers = self.num_computers
+            message = f"Class canceled in Lab {self.lab_id}."
+            output_text.insert(tk.END, message + "\n")
+            self.attending_students.clear()  # Clear the list of attending students if class is canceled
 
     def save_to_csv(self):
         with open("Lab_data.csv", mode="a", newline="") as file:
             writer = csv.writer(file)
             writer.writerow([self.lab_id, self.class_name, self.assigned_time, self.time_duration, self.total_students])
+
+    def add_attending_student(self, student_username):
+        self.attending_students.append(student_username)
+
+    def get_attending_students(self):
+        return self.attending_students
+
 
 class LabManagementSystem:
     def __init__(self, lab_capacity_list):
@@ -94,19 +79,44 @@ class LabManagementSystem:
         message = "No available labs for the class at the moment."
         output_text.insert(tk.END, message + "\n")
 
-    def display_lab_status(self):
+    def cancel_class_in_lab(self, lab_id):
         for lab in self.labs:
-            lab.display_status()
+            if lab.lab_id == lab_id:
+                lab.cancel_class()
+                return
+
+    def get_students_attending_lab(self, lab_id):
+        for lab in self.labs:
+            if lab.lab_id == lab_id:
+                return lab.get_attending_students()
+        return []
 
 def assign_class():
     class_name = class_name_entry.get()
     num_students = int(num_students_entry.get())
     class_duration_hours = int(class_duration_entry.get())
     lab_system.assign_class_to_lab(class_name, num_students, class_duration_hours)
-    lab_system.display_lab_status()
+
+
+def cancel_class():
+    lab_id = int(cancel_lab_entry.get())
+    lab_system.cancel_class_in_lab(lab_id)
+
+
+def admin_login():
+    username = admin_username_entry.get()
+    password = admin_password_entry.get()
+    if username == "admin" and password == "admin123":
+        messagebox.showinfo("Login Success", "Admin login successful!")
+        admin_login_window.destroy()
+        root.deiconify()
+    else:
+        messagebox.showerror("Login Failed", "Invalid admin credentials.")
+
 
 root = tk.Tk()
 root.title("Lab Management System")
+root.withdraw()
 
 lab_system = None
 num_labs = 0
@@ -147,16 +157,67 @@ def create_lab_capacity_entries():
     class_duration_label.grid(row=num_labs + 3, column=0, sticky=tk.W)
     class_duration_entry.grid(row=num_labs + 3, column=1, sticky=tk.W)
 
-    assign_class_button.grid(row=num_labs + 4, column=0, sticky=tk.W)
+    assign_class_button.grid(row=num_labs + 4, column=0, columnspan=2, sticky=tk.W)
+    cancel_lab_label.grid(row=num_labs + 5, column=0, sticky=tk.W)
+    cancel_lab_entry.grid(row=num_labs + 5, column=1, sticky=tk.W)
+    cancel_button.grid(row=num_labs + 6, column=0, columnspan=2, sticky=tk.W)
 
-class_name_label = tk.Label(root, text="Enter Class Name:")
+create_lab_capacity_entries_button = tk.Button(root, text="Create Lab Capacity Entries", command=create_lab_capacity_entries)
+create_lab_capacity_entries_button.grid(row=num_labs + 1, column=0, columnspan=2, sticky=tk.W)
+
+class_name_label = tk.Label(root, text="Enter the class name:")
 class_name_entry = tk.Entry(root)
-
-num_students_label = tk.Label(root, text="Enter Number of Students:")
-num_students_entry = tk.Entry(root)  # This line was missing the assignment
-
-class_duration_label = tk.Label(root, text="Enter Class Duration (hours):")
+num_students_label = tk.Label(root, text="Enter the number of students:")
+num_students_entry = tk.Entry(root)
+class_duration_label = tk.Label(root, text="Enter the duration of the class (in hours):")
 class_duration_entry = tk.Entry(root)
-
 assign_class_button = tk.Button(root, text="Assign Class", command=assign_class)
+cancel_lab_label = tk.Label(root, text="Enter Lab ID to Cancel:")
+cancel_lab_entry = tk.Entry(root)
+cancel_button = tk.Button(root, text="Cancel Class", command=cancel_class)
 
+output_text = tk.Text(root, height=30, width=50)
+output_text.grid(row=0, column=3, rowspan=num_labs + 6, padx=10, pady=10)
+
+# Admin Login Window
+admin_login_window = tk.Toplevel()
+admin_login_window.title("Admin Login")
+admin_login_window.protocol("WM_DELETE_WINDOW", root.destroy)
+
+admin_username_label = tk.Label(admin_login_window, text="Username:")
+admin_username_label.grid(row=0, column=0, sticky=tk.W)
+
+admin_username_entry = tk.Entry(admin_login_window)
+admin_username_entry.grid(row=0, column=1, sticky=tk.W)
+
+admin_password_label = tk.Label(admin_login_window, text="Password:")
+admin_password_label.grid(row=1, column=0, sticky=tk.W)
+
+admin_password_entry = tk.Entry(admin_login_window, show="*")
+admin_password_entry.grid(row=1, column=1, sticky=tk.W)
+
+admin_login_button = tk.Button(admin_login_window, text="Login", command=admin_login)
+admin_login_button.grid(row=2, column=0, columnspan=2, sticky=tk.W)
+
+# Student View Window
+student_view_window = tk.Toplevel()
+student_view_window.title("Student View")
+student_view_window.protocol("WM_DELETE_WINDOW", root.destroy)
+
+def view_assignments():
+    lab_assignments_text.delete("1.0", tk.END)
+    for lab in lab_system.labs:
+        attending_students = lab.get_attending_students()
+        if attending_students:
+            lab_assignments_text.insert(tk.END, f"Lab {lab.lab_id}: {', '.join(attending_students)}\n")
+
+lab_assignments_label = tk.Label(student_view_window, text="Lab Assignments:")
+lab_assignments_label.pack()
+
+lab_assignments_text = tk.Text(student_view_window, height=10, width=50)
+lab_assignments_text.pack()
+
+view_assignments_button = tk.Button(student_view_window, text="View Assignments", command=view_assignments)
+view_assignments_button.pack()
+
+root.mainloop()
